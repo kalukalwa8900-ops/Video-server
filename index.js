@@ -7,7 +7,7 @@ const fs      = require("fs");
 const crypto  = require("crypto");
 
 const app  = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 //  FFmpeg binary path (Railway/Docker: /usr/bin/ffmpeg) 
 ffmpeg.setFfmpegPath(process.env.FFMPEG_PATH || "/usr/bin/ffmpeg");
@@ -126,7 +126,7 @@ function createSegment(imagePath, text, duration, outPath, jobId, idx) {
         "-movflags +faststart",
       ])
       .output(outPath)
-      .on("start", (cmd) => console.log(`[seg${idx}] ${cmd.slice(0, 100)}…`))
+      .on("start", (cmd) => console.log(`[seg${idx}] ${cmd.slice(0, 100)}â€¦`))
       .on("end", () => resolve(outPath))
       .on("error", (err) => {
         console.error(`[seg${idx}] ERROR: ${err.message}`);
@@ -181,7 +181,7 @@ app.post("/generate-video", upload.array("images", 20), async (req, res) => {
     const lines = req.body.narration.split("\n").map((l) => l.trim());
     while (lines.length < req.files.length) lines.push("");
 
-    console.log(`\n[${jobId}] ${req.files.length} panel(s) — starting…`);
+    console.log(`\n[${jobId}] ${req.files.length} panel(s) â€” startingâ€¦`);
 
     for (let i = 0; i < req.files.length; i++) {
       const duration = calcDuration(lines[i]);
@@ -192,7 +192,7 @@ app.post("/generate-video", upload.array("images", 20), async (req, res) => {
     }
 
     const finalPath = path.join(__dirname, "output", `${jobId}_final.mp4`);
-    console.log(`[${jobId}] concatenating…`);
+    console.log(`[${jobId}] concatenatingâ€¦`);
     await concatSegments(segPaths, finalPath);
     console.log(`[${jobId}]  done`);
 
