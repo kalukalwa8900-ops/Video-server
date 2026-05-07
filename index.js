@@ -421,64 +421,140 @@ try {
 // ================================
 // RENDER ROUTE
 // ================================
-app.post("/render", async (req, res) => {
+
+app.post(
+"/render",
+upload.array("images", 20),
+async (req, res) => {
+
+const jobId =
+  crypto.randomBytes(8).toString("hex");
+
+const segPaths = [];
+
+const uploadPaths =
+  (req.files || []).map((f) => f.path);
 
 try {
 
-const outputDir = path.join(__dirname, "output");
+  if (!req.files?.length) {
 
-const files = fs.readdirSync(outputDir)
-  .filter(file => file.endsWith(".mp4"))
-  .sort((a, b) => {
-    return fs.statSync(path.join(outputDir, b)).mtimeMs -
-           fs.statSync(path.join(outputDir, a)).mtimeMs;
+    return res.status(400).json({
+      success: false,
+      error: "No images uploaded."
+    });
+
+  }
+
+  const narration =
+    req.body.narration || "";
+
+  const lines =
+    narration
+      .split("\n")
+      .map((l) => l.trim());
+
+  while (lines.length < req.files.length) {
+    lines.push("");
+  }
+
+  console.log(
+    `[${jobId}] Rendering ${req.files.length} panels`
+  );
+
+  for (let i = 0; i < req.files.length; i++) {
+
+    const duration =
+      calcDuration(lines[i]);
+
+    const segPath = path.join(
+      __dirname,
+      "temp",
+      `seg_${jobId}_${i}.mp4`
+    );
+
+    await createSegment(
+      req.files[i].path,
+      lines[i],
+      duration,
+      segPath,
+      jobId,
+      i
+    );
+
+    segPaths.push(segPath);
+
+  }
+
+  const finalPath = path.join(
+    __dirname,
+    "output",
+    `${jobId}_final.mp4`
+  );
+
+  await concatSegments(
+    segPaths,
+    finalPath
+  );
+
+  cleanup(
+    jobId,
+    segPaths,
+    uploadPaths
+  );
+
+  const finalVideoUrl =
+    `${req.protocol}://${req.get("host")}/output/${jobId}_final.mp4`;
+
+  console.log(
+    "Render completed:",
+    finalVideoUrl
+  );
+
+  return res.json({
+
+    success: true,
+
+    videoUrl: finalVideoUrl,
+
+    url: finalVideoUrl,
+
+    video_url: finalVideoUrl,
+
+    download_url: finalVideoUrl,
+
+    jobId,
+
+    panels: req.files.length
+
   });
-
-if (!files.length) {
-
-  return res.status(404).json({
-    success: false,
-    error: "No rendered videos found"
-  });
-
-}
-
-const latestVideo = files[0];
-
-const fullVideoUrl =
-  `${req.protocol}://${req.get("host")}/output/${latestVideo}`;
-
-console.log("Returning latest video:", fullVideoUrl);
-
-return res.json({
-
-  success: true,
-
-  url: fullVideoUrl,
-
-  videoUrl: fullVideoUrl,
-
-  video_url: fullVideoUrl,
-
-  download_url: fullVideoUrl
-
-});
 
 } catch (err) {
 
-console.error("/render error:", err);
+  console.error(
+    `[${jobId}] Render ERROR`,
+    err.message
+  );
 
-return res.status(500).json({
+  cleanup(
+    jobId,
+    segPaths,
+    uploadPaths
+  );
 
-  success: false,
+  return res.status(500).json({
 
-  error: err.message
+    success: false,
 
-});
+    error: err.message
+
+  });
 
 }
 
-});
+}
+);
+
 // ================================
 // MAIN VIDEO GENERATOR
 // ================================
