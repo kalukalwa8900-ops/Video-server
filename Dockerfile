@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Install Node dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy application code
 COPY . .
