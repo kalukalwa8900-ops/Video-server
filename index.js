@@ -5,22 +5,16 @@ const ffmpeg = require("fluent-ffmpeg");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
-const { execSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ================================
-// FFmpeg Auto-Detection
+// FFmpeg Detection & Validation
 // ================================
 
-function detectFFmpegPath() {
-  const customPath = process.env.FFMPEG_PATH;
-  if (customPath && fs.existsSync(customPath)) {
-    console.log(`✓ Using custom FFmpeg path: ${customPath}`);
-    return customPath;
-  }
-
+function validateFFmpegInstallation() {
   const possiblePaths = [
     "/usr/bin/ffmpeg",
     "/usr/local/bin/ffmpeg",
@@ -28,53 +22,40 @@ function detectFFmpegPath() {
     "ffmpeg"
   ];
 
+  let foundPath = null;
   for (const ffmpegPath of possiblePaths) {
     try {
-      execSync(`${ffmpegPath} -version`, { stdio: "ignore" });
-      console.log(`✓ Found FFmpeg at: ${ffmpegPath}`);
-      return ffmpegPath;
+      const result = execSync(`${ffmpegPath} -version 2>&1`, { encoding: 'utf-8' });
+      if (result.includes("ffmpeg version")) {
+        foundPath = ffmpegPath;
+        console.log(`✓ FFmpeg found at: ${ffmpegPath}`);
+        break;
+      }
     } catch (e) {
       continue;
     }
   }
 
-  console.warn("⚠️  FFmpeg not found in standard locations");
-  return "/usr/bin/ffmpeg";
-}
-
-function detectFFprobePath() {
-  const customPath = process.env.FFPROBE_PATH;
-  if (customPath && fs.existsSync(customPath)) {
-    console.log(`✓ Using custom FFprobe path: ${customPath}`);
-    return customPath;
+  if (!foundPath) {
+    console.error("❌ CRITICAL: FFmpeg is NOT installed!");
+    console.error("Install FFmpeg:");
+    console.error("  Linux: apt-get install -y ffmpeg");
+    console.error("  macOS: brew install ffmpeg");
+    console.error("  Railway: Ensure Dockerfile.txt is being used");
+    process.exit(1);
   }
 
-  const possiblePaths = [
-    "/usr/bin/ffprobe",
-    "/usr/local/bin/ffprobe",
-    "/opt/ffmpeg/bin/ffprobe",
-    "ffprobe"
-  ];
-
-  for (const ffprobePath of possiblePaths) {
-    try {
-      execSync(`${ffprobePath} -version`, { stdio: "ignore" });
-      console.log(`✓ Found FFprobe at: ${ffprobePath}`);
-      return ffprobePath;
-    } catch (e) {
-      continue;
-    }
-  }
-
-  console.warn("⚠️  FFprobe not found in standard locations");
-  return "/usr/bin/ffprobe";
+  return foundPath;
 }
 
-const FFMPEG_PATH = detectFFmpegPath();
-const FFPROBE_PATH = detectFFprobePath();
+const FFMPEG_PATH = validateFFmpegInstallation();
+const FFPROBE_PATH = FFMPEG_PATH.replace("ffmpeg", "ffprobe");
 
 ffmpeg.setFfmpegPath(FFMPEG_PATH);
 ffmpeg.setFfprobePath(FFPROBE_PATH);
+
+console.log(`✓ FFmpeg Path: ${FFMPEG_PATH}`);
+console.log(`✓ FFprobe Path: ${FFPROBE_PATH}`);
 
 // ================================
 // Middleware
@@ -400,6 +381,7 @@ if (
 }
 
 const cmd = ffmpeg()
+  .setFfmpegPath(FFMPEG_PATH)
   .input(imagePath)
   .inputOptions([
     "-loop 1",
@@ -507,6 +489,8 @@ fs.writeFileSync(
 
 ffmpeg()
 
+  .setFfmpegPath(FFMPEG_PATH)
+
   .input(listPath)
 
   .inputOptions([
@@ -585,6 +569,8 @@ service: "scriptreel",
 ffmpeg_path: FFMPEG_PATH,
 
 ffprobe_path: FFPROBE_PATH,
+
+ffmpeg_installed: true,
 
 video_format: "WebM (VP9/Opus)",
 
@@ -1359,6 +1345,10 @@ console.log(
 
 console.log(
   `Video format: WebM (VP9/Opus) - Perfect for Android & Web`
+);
+
+console.log(
+  `FFmpeg: ${FFMPEG_PATH}`
 );
 
 }
