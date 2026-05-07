@@ -5,21 +5,76 @@ const ffmpeg = require("fluent-ffmpeg");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
+const { execSync } = require("child_process");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ================================
-// FFmpeg
+// FFmpeg Auto-Detection
 // ================================
 
-ffmpeg.setFfmpegPath(
-process.env.FFMPEG_PATH || "/usr/bin/ffmpeg"
-);
+function detectFFmpegPath() {
+  const customPath = process.env.FFMPEG_PATH;
+  if (customPath && fs.existsSync(customPath)) {
+    console.log(`Using custom FFmpeg path: ${customPath}`);
+    return customPath;
+  }
 
-ffmpeg.setFfprobePath(
-process.env.FFPROBE_PATH || "/usr/bin/ffprobe"
-);
+  const possiblePaths = [
+    "/usr/bin/ffmpeg",
+    "/usr/local/bin/ffmpeg",
+    "/opt/ffmpeg/bin/ffmpeg",
+    "ffmpeg"
+  ];
+
+  for (const ffmpegPath of possiblePaths) {
+    try {
+      execSync(`${ffmpegPath} -version`, { stdio: "ignore" });
+      console.log(`✓ Found FFmpeg at: ${ffmpegPath}`);
+      return ffmpegPath;
+    } catch (e) {
+      continue;
+    }
+  }
+
+  console.warn("⚠️  FFmpeg not found in standard locations");
+  return "/usr/bin/ffmpeg"; // fallback
+}
+
+function detectFFprobePath() {
+  const customPath = process.env.FFPROBE_PATH;
+  if (customPath && fs.existsSync(customPath)) {
+    console.log(`Using custom FFprobe path: ${customPath}`);
+    return customPath;
+  }
+
+  const possiblePaths = [
+    "/usr/bin/ffprobe",
+    "/usr/local/bin/ffprobe",
+    "/opt/ffmpeg/bin/ffprobe",
+    "ffprobe"
+  ];
+
+  for (const ffprobePath of possiblePaths) {
+    try {
+      execSync(`${ffprobePath} -version`, { stdio: "ignore" });
+      console.log(`✓ Found FFprobe at: ${ffprobePath}`);
+      return ffprobePath;
+    } catch (e) {
+      continue;
+    }
+  }
+
+  console.warn("⚠️  FFprobe not found in standard locations");
+  return "/usr/bin/ffprobe"; // fallback
+}
+
+const FFMPEG_PATH = detectFFmpegPath();
+const FFPROBE_PATH = detectFFprobePath();
+
+ffmpeg.setFfmpegPath(FFMPEG_PATH);
+ffmpeg.setFfprobePath(FFPROBE_PATH);
 
 // ================================
 // Middleware
@@ -51,7 +106,7 @@ path.join(__dirname, "output")
 app.use((req, _res, next) => {
 
 console.log(
-"${req.method} ${req.originalUrl}"
+`${req.method} ${req.originalUrl}`
 );
 
 next();
@@ -512,6 +567,10 @@ res.json({
 status: "ok",
 
 service: "scriptreel",
+
+ffmpeg_path: FFMPEG_PATH,
+
+ffprobe_path: FFPROBE_PATH,
 
 ts: new Date().toISOString()
 
