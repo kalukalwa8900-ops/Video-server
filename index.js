@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 8080;
 function detectFFmpegPath() {
   const customPath = process.env.FFMPEG_PATH;
   if (customPath && fs.existsSync(customPath)) {
-    console.log(`Using custom FFmpeg path: ${customPath}`);
+    console.log(`✓ Using custom FFmpeg path: ${customPath}`);
     return customPath;
   }
 
@@ -39,13 +39,13 @@ function detectFFmpegPath() {
   }
 
   console.warn("⚠️  FFmpeg not found in standard locations");
-  return "/usr/bin/ffmpeg"; // fallback
+  return "/usr/bin/ffmpeg";
 }
 
 function detectFFprobePath() {
   const customPath = process.env.FFPROBE_PATH;
   if (customPath && fs.existsSync(customPath)) {
-    console.log(`Using custom FFprobe path: ${customPath}`);
+    console.log(`✓ Using custom FFprobe path: ${customPath}`);
     return customPath;
   }
 
@@ -67,7 +67,7 @@ function detectFFprobePath() {
   }
 
   console.warn("⚠️  FFprobe not found in standard locations");
-  return "/usr/bin/ffprobe"; // fallback
+  return "/usr/bin/ffprobe";
 }
 
 const FFMPEG_PATH = detectFFmpegPath();
@@ -427,7 +427,7 @@ cmd
 
     "-r 25",
 
-    "-preset fast",
+    "-preset ultrafast",
 
     "-movflags +faststart",
 
@@ -436,7 +436,7 @@ cmd
 
       ? [
           "-c:a aac",
-          "-b:a 192k",
+          "-b:a 128k",
           "-shortest"
         ]
 
@@ -447,10 +447,15 @@ cmd
   .output(outPath)
 
   .on("start", (cmd) => {
-    console.log(`[seg${idx}] ${cmd}`);
+    console.log(`[seg${idx}] Starting segment encoding...`);
+  })
+
+  .on("progress", (progress) => {
+    console.log(`[seg${idx}] Progress: ${Math.round(progress.percent || 0)}%`);
   })
 
   .on("end", () => {
+    console.log(`[seg${idx}] Segment completed successfully`);
     resolve(outPath);
   })
 
@@ -472,7 +477,7 @@ cmd
 }
 
 // ================================
-// Concat Segments
+// Concat Segments - WebM Format
 // ================================
 
 function concatSegments(
@@ -484,7 +489,7 @@ return new Promise((resolve, reject) => {
 
 const listPath =
   outPath.replace(
-    ".mp4",
+    ".webm",
     "_list.txt"
   );
 
@@ -511,17 +516,17 @@ ffmpeg()
 
   .outputOptions([
 
-    "-c:v libx264",
+    "-c:v libvpx-vp9",
 
-    "-pix_fmt yuv420p",
+    "-b:v 500k",
 
-    "-r 25",
+    "-crf 30",
 
-    "-preset fast",
+    "-preset ultrafast",
 
-    "-c:a aac",
+    "-c:a libopus",
 
-    "-b:a 192k",
+    "-b:a 96k",
 
     "-movflags +faststart"
 
@@ -529,12 +534,21 @@ ffmpeg()
 
   .output(outPath)
 
+  .on("start", (cmd) => {
+    console.log(`[concat] Starting video concat (WebM format)...`);
+  })
+
+  .on("progress", (progress) => {
+    console.log(`[concat] Progress: ${Math.round(progress.percent || 0)}%`);
+  })
+
   .on("end", () => {
 
     try {
       fs.unlinkSync(listPath);
     } catch (_) {}
 
+    console.log(`[concat] Video concat completed successfully`);
     resolve(outPath);
 
   })
@@ -571,6 +585,10 @@ service: "scriptreel",
 ffmpeg_path: FFMPEG_PATH,
 
 ffprobe_path: FFPROBE_PATH,
+
+video_format: "WebM (VP9/Opus)",
+
+supported_on: "All devices including Android",
 
 ts: new Date().toISOString()
 
@@ -1005,7 +1023,7 @@ const segPaths = [];
 try {
 
 console.log(
-  `[${jobId}] Rendering ${panels.length} panels`
+  `[${jobId}] Rendering ${panels.length} panels to WebM format`
 );
 
 for (
@@ -1019,7 +1037,7 @@ for (
   const segPath =
     path.join(
       TEMP_ROOT,
-      `seg_${jobId}_${i}.mp4`
+      `seg_${jobId}_${i}.webm`
     );
 
   await createSegment({
@@ -1056,7 +1074,7 @@ for (
 const finalPath =
   path.join(
     OUTPUT_ROOT,
-    `${jobId}_final.mp4`
+    `${jobId}_final.webm`
   );
 
 await concatSegments(
@@ -1068,7 +1086,7 @@ cleanupFiles(segPaths);
 
 const url =
 
-  `${req.protocol}://${req.get("host")}/output/${jobId}_final.mp4`;
+  `${req.protocol}://${req.get("host")}/output/${jobId}_final.webm`;
 
 // auto cleanup after 2 hours
 setTimeout(() => {
@@ -1080,7 +1098,7 @@ setTimeout(() => {
 }, 2 * 60 * 60 * 1000);
 
 console.log(
-  `[${jobId}] Render complete`
+  `[${jobId}] Render complete - WebM format`
 );
 
 return res.json({
@@ -1099,7 +1117,11 @@ return res.json({
 
   video_url: url,
 
-  download_url: url
+  download_url: url,
+
+  format: "WebM (VP9 Video + Opus Audio)",
+
+  device_support: "Android, Chrome, Firefox, Edge - All modern devices"
 
 });
 
@@ -1180,7 +1202,7 @@ for (
   const segPath =
     path.join(
       TEMP_ROOT,
-      `seg_${jobId}_${i}.mp4`
+      `seg_${jobId}_${i}.webm`
     );
 
   const dur = Math.max(
@@ -1233,7 +1255,7 @@ for (
 const finalPath =
   path.join(
     OUTPUT_ROOT,
-    `${jobId}_final.mp4`
+    `${jobId}_final.webm`
   );
 
 await concatSegments(
@@ -1248,7 +1270,7 @@ cleanupFiles([
 
 const url =
 
-  `${req.protocol}://${req.get("host")}/output/${jobId}_final.mp4`;
+  `${req.protocol}://${req.get("host")}/output/${jobId}_final.webm`;
 
 setTimeout(() => {
 
@@ -1272,7 +1294,11 @@ return res.json({
 
   video_url: url,
 
-  download_url: url
+  download_url: url,
+
+  format: "WebM (VP9 Video + Opus Audio)",
+
+  device_support: "Android, Chrome, Firefox, Edge - All modern devices"
 
 });
 
@@ -1329,6 +1355,10 @@ PORT,
 
 console.log(
   `ScriptReel running on port ${PORT}`
+);
+
+console.log(
+  `Video format: WebM (VP9/Opus) - Perfect for Android & Web`
 );
 
 }
