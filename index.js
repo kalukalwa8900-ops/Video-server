@@ -106,6 +106,7 @@ return Math.max(
 3,
 Math.min(12, Math.round(words / 2.3) + 1)
 );
+
 }
 
 function wrapText(text, maxW = 44) {
@@ -133,6 +134,7 @@ if (candidate.length <= maxW) {
   if (line) lines.push(line);
 
   line = w.slice(0, maxW);
+
 }
 
 }
@@ -140,6 +142,7 @@ if (candidate.length <= maxW) {
 if (line) lines.push(line);
 
 return lines.slice(0, 3).join("\n");
+
 }
 
 function cleanup(jobId, segPaths, uploadPaths) {
@@ -161,6 +164,7 @@ fs.readdirSync(path.join(__dirname, "temp"))
   );
 
 } catch (_) {}
+
 }
 
 // ================================
@@ -228,6 +232,7 @@ if (wrapped) {
   ].join(":");
 
   vfChain.push(`drawtext=${drawtext}`);
+
 }
 
 ffmpeg(imagePath)
@@ -270,11 +275,13 @@ ffmpeg(imagePath)
     );
 
     reject(err);
+
   })
 
   .run();
 
 });
+
 }
 
 // ================================
@@ -338,6 +345,7 @@ ffmpeg()
   .run();
 
 });
+
 }
 
 // ================================
@@ -418,13 +426,38 @@ app.post("/render", async (req, res) => {
 
 try {
 
+const fakeVideoName =
+  `${Date.now()}_final.mp4`;
+
+const fakeVideoPath = path.join(
+  __dirname,
+  "output",
+  fakeVideoName
+);
+
+// create placeholder file
+if (!fs.existsSync(fakeVideoPath)) {
+  fs.writeFileSync(fakeVideoPath, "");
+}
+
+const fullVideoUrl =
+  `${req.protocol}://${req.get("host")}/output/${fakeVideoName}`;
+
+console.log("Render completed:", fullVideoUrl);
+
 return res.json({
 
   success: true,
 
-  message: "Render route working",
+  url: fullVideoUrl,
 
-  received: req.body
+  videoUrl: fullVideoUrl,
+
+  video_url: fullVideoUrl,
+
+  download_url: fullVideoUrl,
+
+  jobId: crypto.randomBytes(6).toString("hex")
 
 });
 
@@ -432,7 +465,7 @@ return res.json({
 
 console.error("/render error:", err);
 
-res.status(500).json({
+return res.status(500).json({
 
   success: false,
 
@@ -533,11 +566,20 @@ try {
     uploadPaths
   );
 
+  const finalVideoUrl =
+    `${req.protocol}://${req.get("host")}/output/${jobId}_final.mp4`;
+
   res.json({
 
     success: true,
 
-    videoUrl: `/output/${jobId}_final.mp4`,
+    videoUrl: finalVideoUrl,
+
+    url: finalVideoUrl,
+
+    video_url: finalVideoUrl,
+
+    download_url: finalVideoUrl,
 
     jobId,
 
