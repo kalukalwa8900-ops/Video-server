@@ -421,29 +421,34 @@ try {
 // ================================
 // RENDER ROUTE
 // ================================
-
 app.post("/render", async (req, res) => {
 
 try {
 
-const fakeVideoName =
-  `${Date.now()}_final.mp4`;
+const outputDir = path.join(__dirname, "output");
 
-const fakeVideoPath = path.join(
-  __dirname,
-  "output",
-  fakeVideoName
-);
+const files = fs.readdirSync(outputDir)
+  .filter(file => file.endsWith(".mp4"))
+  .sort((a, b) => {
+    return fs.statSync(path.join(outputDir, b)).mtimeMs -
+           fs.statSync(path.join(outputDir, a)).mtimeMs;
+  });
 
-// create placeholder file
-if (!fs.existsSync(fakeVideoPath)) {
-  fs.writeFileSync(fakeVideoPath, "");
+if (!files.length) {
+
+  return res.status(404).json({
+    success: false,
+    error: "No rendered videos found"
+  });
+
 }
 
-const fullVideoUrl =
-  `${req.protocol}://${req.get("host")}/output/${fakeVideoName}`;
+const latestVideo = files[0];
 
-console.log("Render completed:", fullVideoUrl);
+const fullVideoUrl =
+  `${req.protocol}://${req.get("host")}/output/${latestVideo}`;
+
+console.log("Returning latest video:", fullVideoUrl);
 
 return res.json({
 
@@ -455,9 +460,7 @@ return res.json({
 
   video_url: fullVideoUrl,
 
-  download_url: fullVideoUrl,
-
-  jobId: crypto.randomBytes(6).toString("hex")
+  download_url: fullVideoUrl
 
 });
 
@@ -476,7 +479,6 @@ return res.status(500).json({
 }
 
 });
-
 // ================================
 // MAIN VIDEO GENERATOR
 // ================================
